@@ -34,10 +34,6 @@ size_t mt_get_peak_bytes(void)
     return peak_bytes;
 }
 
-void mt_init(void){
-    next_allocation_id = 1;
-}
-
 static size_t hash_address(void *address){
     
     uintptr_t value = (uintptr_t)address;
@@ -45,19 +41,21 @@ static size_t hash_address(void *address){
     return value % TABLE_SIZE;
 }
 
-static void insert_allocation(Allocation allocation){
+static int insert_allocation(Allocation allocation){
 
     size_t index = hash_address(allocation.address);
 
     AllocationNode *node = malloc(sizeof(AllocationNode));
 
     if(node == NULL)
-        return;
+        return 0;
 
     node->allocation = allocation;
     node->next =  table[index];
 
     table[index] = node;
+
+    return 1;
 
 }
 
@@ -91,6 +89,41 @@ static AllocationNode *remove_allocation(void *address){
 
 }
 
+static void cleanup_allocation(void){
+
+    for(size_t i = 0; i < TABLE_SIZE; i++){
+
+        AllocationNode *curr = table[i];
+        
+        while(curr != NULL){
+
+            AllocationNode *next = curr->next;
+
+            free(curr->allocation.address);
+            free(curr);
+
+            curr = next;
+        }
+
+        table[i] = NULL;
+
+    }
+
+}
+
+void mt_init(void){
+
+    cleanup_allocation();
+
+    next_allocation_id = 1;
+    
+    total_allocations = 0;
+    total_frees = 0;
+
+    active_bytes = 0;
+    peak_bytes = 0;
+}
+
 void *mt_malloc(size_t size){
 
     void *ptr = malloc(size);
@@ -103,7 +136,12 @@ void *mt_malloc(size_t size){
     allocation.size = size;
     allocation.id = next_allocation_id++;
 
-    insert_allocation(allocation);
+    if(!insert_allocation(allocation)){
+
+        free(ptr);
+
+        return NULL;
+    }
 
     total_allocations++;
     active_bytes += size;
