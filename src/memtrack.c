@@ -5,7 +5,14 @@
 
 #define TABLE_SIZE 16
 
+typedef struct FreedNode
+{
+    void *address;
+    struct FreedNode *next;
+} FreedNode;
+
 static AllocationNode *table[TABLE_SIZE] = {NULL};
+static FreedNode *freed_table[TABLE_SIZE] = {NULL};
 
 static unsigned long next_allocation_id = 1;
 static unsigned long total_allocations = 0;
@@ -89,6 +96,92 @@ static AllocationNode *remove_allocation(void *address){
 
 }
 
+static int is_freed(void *address){
+
+    size_t index = hash_address(address);
+
+    FreedNode *curr = freed_table[index];
+
+    while(curr != NULL){
+
+        if(curr->address == address){
+            return 1;
+        }
+
+        curr = curr->next;
+    }
+
+    return 0;
+
+}
+
+static int record_free(void *address){
+
+    size_t index = hash_address(address);
+
+    FreedNode *node = malloc(sizeof(FreedNode));
+
+    if(node == NULL){
+        return 0;
+    }
+
+    node->address = address;
+    node->next = freed_table[index];
+
+    freed_table[index] = node;
+
+    return 1;
+
+}
+
+static void remove_freed(void *address)
+{
+    size_t index = hash_address(address);
+
+    FreedNode *prev = NULL;
+    FreedNode *curr = freed_table[index];
+
+    while (curr != NULL)
+    {
+        if (curr->address == address)
+        {
+            if (prev == NULL)
+            {
+                freed_table[index] = curr->next;
+            }
+            else
+            {
+                prev->next = curr->next;
+            }
+
+            free(curr);
+            return;
+        }
+
+        prev = curr;
+        curr = curr->next;
+    }
+}
+
+static void cleanup_freed(void)
+{
+    for (size_t i = 0; i < TABLE_SIZE; i++)
+    {
+        FreedNode *curr = freed_table[i];
+
+        while (curr != NULL)
+        {
+            FreedNode *next = curr->next;
+
+            free(curr);
+
+            curr = next;
+        }
+
+        freed_table[i] = NULL;
+    }
+}
+
 static void cleanup_allocation(void){
 
     for(size_t i = 0; i < TABLE_SIZE; i++){
@@ -113,10 +206,25 @@ static void cleanup_allocation(void){
 
 void mt_init(void){
 
-    cleanup_allocation();
-
     next_allocation_id = 1;
     
+    total_allocations = 0;
+    total_frees = 0;
+
+    active_bytes = 0;
+    peak_bytes = 0;
+}
+
+void mt_shutdown(void)
+{
+
+    mt_report_leaks();
+
+    cleanup_allocation();
+    cleanup_freed();
+
+    next_allocation_id = 1;
+
     total_allocations = 0;
     total_frees = 0;
 
@@ -130,6 +238,8 @@ void *mt_malloc(size_t size){
 
     if(ptr == NULL)
         return NULL;
+
+    remove_freed(ptr);
 
     Allocation allocation;
     allocation.address = ptr;
@@ -175,8 +285,20 @@ void mt_free(void *address){
     AllocationNode *node = remove_allocation(address);
 
     if(node == NULL){
-        printf("Invalid free: %p\n", address);
+
+        if(is_freed(address)){
+            printf("Double free: %p\n", address);
+        }
+        else{
+            printf("Invalid free: %p\n", address);
+        }
+
         return;
+    }
+
+    if (!record_free(node->allocation.address))
+    {
+        printf("Warning: failed to record freed address: %p\n", node->allocation.address);
     }
     
     free(node->allocation.address);
@@ -187,4 +309,37 @@ void mt_free(void *address){
 
     total_frees++;
 
+}
+
+void mt_report_leaks(void){
+
+    size_t leak_count = 0;
+    size_t leaked_bytes = 0;
+
+    for(size_t idx = 0; idx < TABLE_SIZE; idx++){
+
+        AllocationNode *curr = table[idx];
+
+        while(curr != NULL){
+
+            printf("\n[LEAK]\n");
+            printf("ID: %lu\n", curr->allocation.id);
+            printf("Address: %p\n", curr->allocation.address);
+            printf("Size: %zu bytes\n", curr->allocation.size);
+
+            leak_count++;
+            leaked_bytes += curr->allocation.size;
+
+            curr = curr->next;
+        }
+
+    }
+
+    if(leak_count == 0){
+        printf("No memory leaks detected\n");
+    }
+    else{
+        printf("\nTotal leaked allocations: %zu\n", leak_count);
+        printf("Total leaked bytes: %zu\n", leaked_bytes);
+    }
 }

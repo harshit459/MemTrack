@@ -14,15 +14,17 @@ typedef struct AllocationNode{
     struct AllocationNode *next;
 } AllocationNode;
 
-void mt_init(void);
-void *mt_malloc(size_t size);
-Allocation *mt_find(void* address);
-void mt_free(void *address);
-
 unsigned long mt_get_total_allocations(void);
 unsigned long mt_get_total_frees(void);
 
 size_t mt_get_active_bytes(void);
 size_t mt_get_peak_bytes(void);
+
+void mt_init(void);
+void *mt_malloc(size_t size);
+Allocation *mt_find(void* address);
+void mt_free(void *address);
+void mt_report_leaks(void);
+void mt_shutdown(void);
 
 #endif  

@@ -8,21 +8,25 @@ int main(void)
     void *p1 = mt_malloc(100);
     void *p2 = mt_malloc(200);
 
-    printf("Before re-init:\n");
-    printf("Allocations: %lu\n", mt_get_total_allocations());
+    int value = 10;
+
+    printf("Before freeing:\n");
     printf("Active bytes: %zu\n", mt_get_active_bytes());
 
-    mt_init();
+    mt_free(p1);
+    mt_free(p1);
 
-    printf("\nAfter re-init:\n");
-    printf("Allocations: %lu\n", mt_get_total_allocations());
-    printf("Frees: %lu\n", mt_get_total_frees());
+    printf("\nAfter freeing p1:\n");
     printf("Active bytes: %zu\n", mt_get_active_bytes());
-    printf("Peak bytes: %zu\n", mt_get_peak_bytes());
 
-    printf("\nLookup after re-init:\n");
-    printf("p1: %s\n", mt_find(p1) == NULL ? "NOT FOUND" : "FOUND");
-    printf("p2: %s\n", mt_find(p2) == NULL ? "NOT FOUND" : "FOUND");
+    mt_free(p2);
+
+    printf("\nAfter freeing p2:\n");
+    printf("Active bytes: %zu\n", mt_get_active_bytes());
+
+    mt_free(&value);
+
+    mt_shutdown();
 
     return 0;
 }
