@@ -262,6 +262,93 @@ void *mt_malloc(size_t size){
     return ptr;
 }
 
+void *mt_calloc(size_t nmemb, size_t size)
+{
+
+    if(nmemb != 0 && size > SIZE_MAX/nmemb){
+        return NULL;
+    }
+
+    void *ptr = calloc(nmemb, size);
+
+    if (ptr == NULL)
+        return NULL;
+
+    remove_freed(ptr);
+
+    Allocation allocation;
+    allocation.address = ptr;
+    allocation.size = nmemb * size;
+    allocation.id = next_allocation_id++;
+
+    if (!insert_allocation(allocation))
+    {
+        free(ptr);
+        return NULL;
+    }
+
+    total_allocations++;
+    active_bytes += allocation.size;
+
+    if (active_bytes > peak_bytes)
+        peak_bytes = active_bytes;
+
+    return ptr;
+}
+
+void *mt_realloc(void *address, size_t size){
+
+    if(address == NULL){
+        return mt_malloc(size);
+    }
+
+    if (size == 0)
+    {
+        mt_free(address);
+        return NULL;
+    }
+
+    AllocationNode *node = remove_allocation(address);
+
+    if(node == NULL){
+        printf("Invalid realloc: %p\n", address);
+        return NULL;
+    }
+
+    size_t old_size = node->allocation.size;
+
+    void *new_ptr = realloc(address, size);
+
+    if(new_ptr == NULL){
+
+        size_t index = hash_address(address);
+
+        node->next = table[index];
+        table[index] = node;
+
+        return NULL;
+    }
+
+    remove_freed(new_ptr);
+
+    node->allocation.address = new_ptr;
+    node->allocation.size = size;
+
+    size_t index = hash_address(new_ptr);
+
+    node->next = table[index];
+    table[index] = node;
+
+    active_bytes -= old_size;
+    active_bytes += size;
+
+    if(active_bytes > peak_bytes)
+        peak_bytes = active_bytes;
+
+    return new_ptr;
+
+}
+
 Allocation *mt_find(void *address){
 
     size_t index = hash_address(address);

@@ -21,7 +21,11 @@ size_t mt_get_active_bytes(void);
 size_t mt_get_peak_bytes(void);
 
 void mt_init(void);
+
 void *mt_malloc(size_t size);
+void *mt_calloc(size_t nmemb, size_t size);
+void *mt_realloc(void *address, size_t size);
+
 Allocation *mt_find(void* address);
 void mt_free(void *address);
 void mt_report_leaks(void);
