@@ -6,6 +6,7 @@
 *.out
 *.exe
 memtrack
+test_memtrack
 
 # Build directories
 build/

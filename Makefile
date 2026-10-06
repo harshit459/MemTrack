@@ -19,3 +19,7 @@ build/memtrack.o: src/memtrack.c
 
 clean:
 	rm -rf build $(TARGET)
+
+test: tests/test_memtrack.c src/memtrack.c
+	$(CC) $(CFLAGS) tests/test_memtrack.c src/memtrack.c -o test_memtrack
+	./test_memtrack

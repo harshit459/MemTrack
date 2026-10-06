@@ -45,6 +45,8 @@ static size_t hash_address(void *address){
     
     uintptr_t value = (uintptr_t)address;
 
+    value >>= 4;
+
     return value % TABLE_SIZE;
 }
 
@@ -368,6 +370,9 @@ Allocation *mt_find(void *address){
 }
 
 void mt_free(void *address){
+
+    if (address == NULL)
+        return;
 
     AllocationNode *node = remove_allocation(address);
 
