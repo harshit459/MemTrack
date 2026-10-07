@@ -344,6 +344,59 @@ int main(void)
 
     mt_free(metadata_ptr);
 
+    mt_shutdown();
+
+    printf("\n[TEST] detailed memory statistics\n");
+
+    void *stats_ptr1 = mt_malloc(100);
+    void *stats_ptr2 = mt_malloc(200);
+
+    assert(stats_ptr1 != NULL);
+    assert(stats_ptr2 != NULL);
+
+    assert(mt_get_malloc_calls() == 2);
+    assert(mt_get_active_allocations() == 2);
+    assert(mt_get_peak_allocations() == 2);
+
+    printf("[PASS] malloc statistics\n");
+
+    void *stats_ptr3 = mt_calloc(5, sizeof(int));
+
+    assert(stats_ptr3 != NULL);
+    assert(mt_get_calloc_calls() == 1);
+    assert(mt_get_active_allocations() == 3);
+    assert(mt_get_peak_allocations() == 3);
+
+    printf("[PASS] calloc statistics\n");
+
+    stats_ptr1 = mt_realloc(stats_ptr1, 500);
+
+    assert(stats_ptr1 != NULL);
+    assert(mt_get_realloc_calls() == 1);
+    assert(mt_get_active_allocations() == 3);
+
+    printf("[PASS] realloc statistics\n");
+
+    mt_free(stats_ptr2);
+
+    assert(mt_get_active_allocations() == 2);
+
+    printf("[PASS] free statistics\n");
+
+    mt_free(stats_ptr1);
+    mt_free(stats_ptr3);
+
+    assert(mt_get_active_allocations() == 0);
+    assert(mt_get_peak_allocations() == 3);
+
+    printf("[PASS] active and peak allocation statistics\n");
+
+    printf("\n[TEST] statistics report\n");
+
+    mt_print_stats();
+
+    printf("[PASS] statistics report\n");
+
     printf("\n[TEST] leak detection and statistics\n");
 
     void *leak1 = mt_malloc(100);

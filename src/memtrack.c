@@ -18,6 +18,13 @@ static unsigned long next_allocation_id = 1;
 static unsigned long total_allocations = 0;
 static unsigned long total_frees = 0;
 
+static unsigned long malloc_calls = 0;
+static unsigned long calloc_calls = 0;
+static unsigned long realloc_calls = 0;
+
+static unsigned long active_allocations = 0;
+static unsigned long peak_allocations = 0;
+
 static size_t active_bytes = 0;
 static size_t peak_bytes = 0;
 
@@ -32,6 +39,31 @@ unsigned long mt_get_total_allocations(void)
 unsigned long mt_get_total_frees(void)
 {
     return total_frees;
+}
+
+unsigned long mt_get_malloc_calls(void)
+{
+    return malloc_calls;
+}
+
+unsigned long mt_get_calloc_calls(void)
+{
+    return calloc_calls;
+}
+
+unsigned long mt_get_realloc_calls(void)
+{
+    return realloc_calls;
+}
+
+unsigned long mt_get_active_allocations(void)
+{
+    return active_allocations;
+}
+
+unsigned long mt_get_peak_allocations(void)
+{
+    return peak_allocations;
 }
 
 size_t mt_get_active_bytes(void)
@@ -81,6 +113,11 @@ static void *track_allocation(void *ptr, size_t size,
 
     total_allocations++;
     active_bytes += size;
+
+    active_allocations++;
+
+    if (active_allocations > peak_allocations)
+        peak_allocations = active_allocations;
 
     if (active_bytes > peak_bytes)
         peak_bytes = active_bytes;
@@ -253,6 +290,14 @@ void mt_init(void){
 
     active_bytes = 0;
     peak_bytes = 0;
+
+    malloc_calls = 0;
+    calloc_calls = 0;
+    realloc_calls = 0;
+
+    active_allocations = 0;
+    peak_allocations = 0;
+
 }
 
 void mt_shutdown(void)
@@ -270,12 +315,22 @@ void mt_shutdown(void)
 
     active_bytes = 0;
     peak_bytes = 0;
+
+    malloc_calls = 0;
+    calloc_calls = 0;
+    realloc_calls = 0;
+
+    active_allocations = 0;
+    peak_allocations = 0;
+
 }
 
 void *mt_malloc_debug(size_t size, const char *file, 
     int line, const char *function)
 {
     void *ptr = malloc(size);
+
+    malloc_calls++;
 
     return track_allocation(ptr, size, MT_MALLOC,
         file, line, function
@@ -290,6 +345,8 @@ void *mt_calloc_debug(size_t nmemb, size_t size,
 
     void *ptr = calloc(nmemb, size);
 
+    calloc_calls++;
+
     return track_allocation(ptr, nmemb * size, MT_CALLOC,
         file, line, function
     );
@@ -298,6 +355,8 @@ void *mt_calloc_debug(size_t nmemb, size_t size,
 void *mt_realloc_debug(void *address, size_t size,
     const char *file, int line, const char *function)
 {
+
+    realloc_calls++;
 
     if(address == NULL){
         void *ptr = malloc(size);
@@ -399,6 +458,8 @@ void mt_free(void *address){
 
     active_bytes -= node->allocation.size;
 
+    active_allocations--;
+
     free(node);
 
     total_frees++;
@@ -464,4 +525,21 @@ void mt_report_leaks(void)
         printf("\nTotal leaked allocations: %zu\n", leak_count);
         printf("Total leaked bytes: %zu\n", leaked_bytes);
     }
+}
+
+void mt_print_stats(void)
+{
+    printf("\n===== MemTrack Statistics =====\n");
+
+    printf("\nAllocation Operations\n");
+    printf("  malloc calls:       %lu\n", malloc_calls);
+    printf("  calloc calls:       %lu\n", calloc_calls);
+    printf("  realloc calls:      %lu\n", realloc_calls);
+    printf("  free calls:         %lu\n", total_frees);
+
+    printf("\nMemory Usage\n");
+    printf("  Active allocations: %lu\n", active_allocations);
+    printf("  Peak allocations:   %lu\n", peak_allocations);
+    printf("  Active bytes:       %zu\n", active_bytes);
+    printf("  Peak bytes:         %zu\n", peak_bytes);
 }
