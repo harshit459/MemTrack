@@ -265,6 +265,85 @@ int main(void)
 
     printf("[PASS] realloc bucket movement cleanup\n");
 
+    printf("\n[TEST] allocation metadata\n");
+
+    void *metadata_ptr = mt_malloc(64);
+    assert(metadata_ptr != NULL);
+
+    Allocation *metadata = mt_find(metadata_ptr);
+
+    assert(metadata != NULL);
+    assert(metadata->address == metadata_ptr);
+    assert(metadata->size == 64);
+    assert(metadata->file != NULL);
+    assert(metadata->function != NULL);
+    assert(metadata->line > 0);
+    assert(metadata->type == MT_MALLOC);
+
+    printf("[PASS] malloc metadata\n");
+
+    mt_free(metadata_ptr);
+
+    metadata_ptr = mt_calloc(4, sizeof(int));
+    assert(metadata_ptr != NULL);
+
+    metadata = mt_find(metadata_ptr);
+
+    assert(metadata != NULL);
+    assert(metadata->type == MT_CALLOC);
+    assert(metadata->size == 16);
+
+    printf("[PASS] calloc metadata\n");
+
+    mt_free(metadata_ptr);
+
+    metadata_ptr = mt_realloc(NULL, 128);
+    assert(metadata_ptr != NULL);
+
+    metadata = mt_find(metadata_ptr);
+
+    assert(metadata != NULL);
+    assert(metadata->type == MT_REALLOC);
+    assert(metadata->size == 128);
+    assert(metadata->file != NULL);
+    assert(metadata->function != NULL);
+    assert(metadata->line > 0);
+
+    printf("[PASS] realloc(NULL, size) metadata\n");
+
+    mt_free(metadata_ptr);
+
+    printf("\n[TEST] realloc preserves metadata\n");
+
+    metadata_ptr = mt_malloc(100);
+
+    metadata = mt_find(metadata_ptr);
+
+    assert(metadata != NULL);
+
+    const char *original_file = metadata->file;
+    const char *original_function = metadata->function;
+    int original_line = metadata->line;
+    unsigned long original_id = metadata->id;
+
+    metadata_ptr = mt_realloc(metadata_ptr, 500);
+
+    assert(metadata_ptr != NULL);
+
+    metadata = mt_find(metadata_ptr);
+
+    assert(metadata != NULL);
+    assert(metadata->size == 500);
+    assert(metadata->id == original_id);
+    assert(metadata->file == original_file);
+    assert(metadata->function == original_function);
+    assert(metadata->line == original_line);
+    assert(metadata->type == MT_MALLOC);
+
+    printf("[PASS] realloc preserves allocation metadata\n");
+
+    mt_free(metadata_ptr);
+
     printf("\n[TEST] leak detection and statistics\n");
 
     void *leak1 = mt_malloc(100);

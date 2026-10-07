@@ -21,6 +21,9 @@ static unsigned long total_frees = 0;
 static size_t active_bytes = 0;
 static size_t peak_bytes = 0;
 
+static int insert_allocation(Allocation allocation);
+static void remove_freed(void *address);
+
 unsigned long mt_get_total_allocations(void)
 {
     return total_allocations;
@@ -48,6 +51,41 @@ static size_t hash_address(void *address){
     value >>= 4;
 
     return value % TABLE_SIZE;
+}
+
+static void *track_allocation(void *ptr, size_t size, 
+    AllocationType type, const char *file, 
+    int line, const char *function)
+{
+    if (ptr == NULL)
+        return NULL;
+
+    remove_freed(ptr);
+
+    Allocation allocation;
+
+    allocation.address = ptr;
+    allocation.size = size;
+    allocation.id = next_allocation_id++;
+
+    allocation.file = file;
+    allocation.line = line;
+    allocation.function = function;
+    allocation.type = type;
+
+    if (!insert_allocation(allocation))
+    {
+        free(ptr);
+        return NULL;
+    }
+
+    total_allocations++;
+    active_bytes += size;
+
+    if (active_bytes > peak_bytes)
+        peak_bytes = active_bytes;
+
+    return ptr;
 }
 
 static int insert_allocation(Allocation allocation){
@@ -234,74 +272,38 @@ void mt_shutdown(void)
     peak_bytes = 0;
 }
 
-void *mt_malloc(size_t size){
-
+void *mt_malloc_debug(size_t size, const char *file, 
+    int line, const char *function)
+{
     void *ptr = malloc(size);
 
-    if(ptr == NULL)
-        return NULL;
-
-    remove_freed(ptr);
-
-    Allocation allocation;
-    allocation.address = ptr;
-    allocation.size = size;
-    allocation.id = next_allocation_id++;
-
-    if(!insert_allocation(allocation)){
-
-        free(ptr);
-
-        return NULL;
-    }
-
-    total_allocations++;
-    active_bytes += size;
-
-    if(active_bytes > peak_bytes)
-        peak_bytes = active_bytes;
-
-    return ptr;
+    return track_allocation(ptr, size, MT_MALLOC,
+        file, line, function
+    );
 }
 
-void *mt_calloc(size_t nmemb, size_t size)
+void *mt_calloc_debug(size_t nmemb, size_t size,
+    const char *file, int line, const char *function)
 {
-
-    if(nmemb != 0 && size > SIZE_MAX/nmemb){
+    if (nmemb != 0 && size > SIZE_MAX / nmemb)
         return NULL;
-    }
 
     void *ptr = calloc(nmemb, size);
 
-    if (ptr == NULL)
-        return NULL;
-
-    remove_freed(ptr);
-
-    Allocation allocation;
-    allocation.address = ptr;
-    allocation.size = nmemb * size;
-    allocation.id = next_allocation_id++;
-
-    if (!insert_allocation(allocation))
-    {
-        free(ptr);
-        return NULL;
-    }
-
-    total_allocations++;
-    active_bytes += allocation.size;
-
-    if (active_bytes > peak_bytes)
-        peak_bytes = active_bytes;
-
-    return ptr;
+    return track_allocation(ptr, nmemb * size, MT_CALLOC,
+        file, line, function
+    );
 }
 
-void *mt_realloc(void *address, size_t size){
+void *mt_realloc_debug(void *address, size_t size,
+    const char *file, int line, const char *function)
+{
 
     if(address == NULL){
-        return mt_malloc(size);
+        void *ptr = malloc(size);
+
+        return track_allocation(ptr, size, MT_REALLOC, 
+            file, line, function);
     }
 
     if (size == 0)
@@ -403,34 +405,62 @@ void mt_free(void *address){
 
 }
 
-void mt_report_leaks(void){
-
+void mt_report_leaks(void)
+{
     size_t leak_count = 0;
     size_t leaked_bytes = 0;
 
-    for(size_t idx = 0; idx < TABLE_SIZE; idx++){
-
+    for (size_t idx = 0; idx < TABLE_SIZE; idx++)
+    {
         AllocationNode *curr = table[idx];
 
-        while(curr != NULL){
-
+        while (curr != NULL)
+        {
             printf("\n[LEAK]\n");
             printf("ID: %lu\n", curr->allocation.id);
+            printf("Type: ");
+
+            switch (curr->allocation.type)
+            {
+                case MT_MALLOC:
+                    printf("malloc\n");
+                    break;
+
+                case MT_CALLOC:
+                    printf("calloc\n");
+                    break;
+
+                case MT_REALLOC:
+                    printf("realloc\n");
+                    break;
+
+                default:
+                    printf("unknown\n");
+            }
+
             printf("Address: %p\n", curr->allocation.address);
             printf("Size: %zu bytes\n", curr->allocation.size);
+
+            printf("Allocated at: %s:%d\n",
+                   curr->allocation.file,
+                   curr->allocation.line);
+
+            printf("Function: %s\n",
+                   curr->allocation.function);
 
             leak_count++;
             leaked_bytes += curr->allocation.size;
 
             curr = curr->next;
         }
-
     }
 
-    if(leak_count == 0){
+    if (leak_count == 0)
+    {
         printf("No memory leaks detected\n");
     }
-    else{
+    else
+    {
         printf("\nTotal leaked allocations: %zu\n", leak_count);
         printf("Total leaked bytes: %zu\n", leaked_bytes);
     }
