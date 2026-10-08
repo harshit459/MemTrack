@@ -3,6 +3,18 @@
 
 #include <stddef.h>
 
+#define mt_malloc(size) \
+    mt_malloc_debug(size, __FILE__, __LINE__, __func__)
+
+#define mt_calloc(nmemb, size) \
+    mt_calloc_debug(nmemb, size, __FILE__, __LINE__, __func__)
+
+#define mt_realloc(address, size) \
+    mt_realloc_debug(address, size, __FILE__, __LINE__, __func__)
+
+#define mt_free(address) \
+    mt_free_debug(address, __FILE__, __LINE__, __func__)
+
 typedef enum{
 
     MT_MALLOC,
@@ -70,18 +82,14 @@ void *mt_realloc_debug(
     const char *function
 );
 
-#define mt_malloc(size) \
-    mt_malloc_debug(size, __FILE__, __LINE__, __func__)
-
-#define mt_calloc(nmemb, size) \
-    mt_calloc_debug(nmemb, size, __FILE__, __LINE__, __func__)
-
-#define mt_realloc(address, size) \
-    mt_realloc_debug(address, size, __FILE__, __LINE__, __func__)
-
 Allocation *mt_find(void* address);
 
-void mt_free(void *address);
+void mt_free_debug(
+    void *address,
+    const char *file,
+    int line,
+    const char *function
+);
 void mt_report_leaks(void);
 void mt_shutdown(void);
 void mt_print_stats(void);

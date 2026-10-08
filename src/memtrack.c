@@ -8,6 +8,15 @@
 typedef struct FreedNode
 {
     void *address;
+
+    const char *file;
+    const char *function;
+    int line;
+
+    const char *allocation_file;
+    const char *allocation_function;
+    int allocation_line;
+
     struct FreedNode *next;
 } FreedNode;
 
@@ -173,26 +182,28 @@ static AllocationNode *remove_allocation(void *address){
 
 }
 
-static int is_freed(void *address){
-
+static FreedNode *find_freed(void *address)
+{
     size_t index = hash_address(address);
 
     FreedNode *curr = freed_table[index];
 
-    while(curr != NULL){
-
-        if(curr->address == address){
-            return 1;
-        }
+    while (curr != NULL)
+    {
+        if (curr->address == address)
+            return curr;
 
         curr = curr->next;
     }
 
-    return 0;
-
+    return NULL;
 }
 
-static int record_free(void *address){
+static int record_free(void *address, const char *file, 
+    int line, const char *function, 
+    const char *allocation_file, int allocation_line, 
+    const char *allocation_function)
+{
 
     size_t index = hash_address(address);
 
@@ -203,6 +214,15 @@ static int record_free(void *address){
     }
 
     node->address = address;
+
+    node->file = file;
+    node->line = line;
+    node->function = function;
+
+    node->allocation_file = allocation_file;
+    node->allocation_line = allocation_line;
+    node->allocation_function = allocation_function;
+
     node->next = freed_table[index];
 
     freed_table[index] = node;
@@ -367,7 +387,7 @@ void *mt_realloc_debug(void *address, size_t size,
 
     if (size == 0)
     {
-        mt_free(address);
+        mt_free_debug(address, file, line, function);
         return NULL;
     }
 
@@ -430,26 +450,55 @@ Allocation *mt_find(void *address){
 
 }
 
-void mt_free(void *address){
+void mt_free_debug(void *address, const char *file,
+    int line, const char *function)
+{
 
     if (address == NULL)
         return;
 
     AllocationNode *node = remove_allocation(address);
 
-    if(node == NULL){
+    if (node == NULL)
+    {
+        FreedNode *freed = find_freed(address);
 
-        if(is_freed(address)){
-            printf("Double free: %p\n", address);
+        if (freed != NULL)
+        {
+            printf("\n[ERROR] Double Free\n");
+            printf("Address: %p\n", address);
+        
+            printf("Originally allocated at: %s:%d\n",
+                   freed->allocation_file,
+                   freed->allocation_line);
+            
+            printf("Allocation function: %s\n",
+                   freed->allocation_function);
+            
+            printf("Previously freed at: %s:%d\n",
+                   freed->file,
+                   freed->line);
+            
+            printf("Free function: %s\n",
+                   freed->function);
         }
-        else{
-            printf("Invalid free: %p\n", address);
+        else
+        {
+            printf("\n[ERROR] Invalid Free\n");
+            printf("Address: %p\n", address);
+            printf("Attempted at: %s:%d\n",
+                   file,
+                   line);
+            printf("Function: %s\n",
+                   function);
         }
 
         return;
     }
 
-    if (!record_free(node->allocation.address))
+    if (!record_free(node->allocation.address,
+        file, line, function, 
+        node->allocation.file, node->allocation.line, node->allocation.function))
     {
         printf("Warning: failed to record freed address: %p\n", node->allocation.address);
     }

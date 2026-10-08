@@ -63,6 +63,10 @@ int main(void)
 
     mt_free(arr);
 
+    printf("\n=== MEMORY STATISTICS ===\n");
+
+    mt_print_stats();
+
     printf("\n=== FINAL SHUTDOWN ===\n");
 
     mt_shutdown();

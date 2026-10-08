@@ -143,6 +143,36 @@ int main(void)
 
     printf("[PASS] invalid free detection\n");
 
+    printf("\n[TEST] free diagnostic metadata\n");
+
+    void *diagnostic_ptr = mt_malloc(128);
+    assert(diagnostic_ptr != NULL);
+
+    Allocation *diagnostic_allocation = mt_find(diagnostic_ptr);
+    assert(diagnostic_allocation != NULL);
+
+    assert(diagnostic_allocation->file != NULL);
+    assert(diagnostic_allocation->function != NULL);
+    assert(diagnostic_allocation->line > 0);
+
+    printf("[PASS] allocation metadata available for diagnostics\n");
+
+    mt_free(diagnostic_ptr);
+
+    printf("[PASS] free metadata recorded\n");
+
+    mt_free(diagnostic_ptr);
+
+    printf("[PASS] double-free diagnostic executed\n");
+
+    printf("\n[TEST] free NULL\n");
+
+    mt_free(NULL);
+
+    assert(mt_get_active_allocations() == 0);
+
+    printf("[PASS] free(NULL) handled safely\n");
+
     printf("\n[TEST] address reuse\n");
 
     void *old_ptr = mt_malloc(64);
@@ -396,6 +426,73 @@ int main(void)
     mt_print_stats();
 
     printf("[PASS] statistics report\n");
+
+    printf("\n[TEST] malloc(0)\n");
+
+    void *zero_ptr = mt_malloc(0);
+
+    if (zero_ptr != NULL)
+    {
+        assert(mt_find(zero_ptr) != NULL);
+        mt_free(zero_ptr);
+    }
+
+    printf("[PASS] malloc(0) handled safely\n");
+
+    printf("\n[TEST] calloc(0, size)\n");
+
+    zero_ptr = mt_calloc(0, 10);
+
+    if (zero_ptr != NULL)
+    {
+        assert(mt_find(zero_ptr) != NULL);
+        mt_free(zero_ptr);
+    }
+
+    printf("[PASS] calloc(0, size) handled safely\n");
+
+    printf("\n[TEST] calloc overflow\n");
+
+    void *overflow_ptr = mt_calloc(SIZE_MAX, 2);
+
+    assert(overflow_ptr == NULL);
+
+    printf("[PASS] calloc overflow rejected\n");
+
+    printf("\n[TEST] realloc same size\n");
+
+    void *same_ptr = mt_malloc(256);
+
+    assert(same_ptr != NULL);
+
+    Allocation *same_allocation = mt_find(same_ptr);
+    assert(same_allocation != NULL);
+
+    unsigned long same_id = same_allocation->id;
+
+    same_ptr = mt_realloc(same_ptr, 256);
+
+    assert(same_ptr != NULL);
+
+    same_allocation = mt_find(same_ptr);
+
+    assert(same_allocation != NULL);
+    assert(same_allocation->size == 256);
+    assert(same_allocation->id == same_id);
+
+    mt_free(same_ptr);
+
+    printf("[PASS] realloc same size\n");
+
+    printf("\n[TEST] invalid realloc\n");
+
+    int dummy = 42;
+
+    void *invalid_realloc = mt_realloc(&dummy, 100);
+
+    assert(invalid_realloc == NULL);
+
+    printf("[PASS] invalid realloc detected\n");
 
     printf("\n[TEST] leak detection and statistics\n");
 
